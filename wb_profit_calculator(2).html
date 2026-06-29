@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WB калькулятор чистой прибыли с API</title>
+  <style>
+    :root{
+      --bg:#f5f7fb;
+      --panel:#ffffff;
+      --text:#111827;
+      --muted:#6b7280;
+      --line:#e5e7eb;
+      --accent:#7c3aed;
+      --accent2:#f3e8ff;
+      --good:#047857;
+      --bad:#b91c1c;
+      --warn:#b45309;
+      --info:#1d4ed8;
+      --shadow:0 18px 45px rgba(17,24,39,.08);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      background:linear-gradient(135deg,#f8fafc 0%,#f5f3ff 52%,#eef2ff 100%);
+      color:var(--text);
+      min-height:100vh;
+    }
+    .wrap{max-width:1280px;margin:0 auto;padding:28px 18px 46px}
+    .hero{display:grid;grid-template-columns:1.25fr .75fr;gap:18px;align-items:stretch;margin-bottom:18px}
+    .card{background:rgba(255,255,255,.88);border:1px solid rgba(229,231,235,.9);border-radius:var(--radius);box-shadow:var(--shadow);backdrop-filter:blur(10px)}
+    .intro{padding:28px}
+    h1{font-size:clamp(28px,4vw,46px);line-height:1.02;margin:0 0 12px;letter-spacing:-.04em}
+    h2{font-size:20px;margin:0;letter-spacing:-.02em}
+    .lead{font-size:16px;line-height:1.55;color:#374151;margin:0 0 18px;max-width:880px}
+    .note{background:var(--accent2);border:1px solid #ddd6fe;color:#4c1d95;border-radius:14px;padding:14px 16px;line-height:1.45;font-size:14px}
+    .totals{padding:18px;display:grid;gap:12px}
+    .metric{border:1px solid var(--line);border-radius:16px;background:#fff;padding:16px}
+    .metric span{display:block;color:var(--muted);font-size:13px;margin-bottom:6px}
+    .metric strong{font-size:26px;letter-spacing:-.03em}
+    .metric.good strong{color:var(--good)}
+    .metric.bad strong{color:var(--bad)}
+    .controls,.table-card,.api-card{padding:22px;margin-bottom:18px}
+    .section-title{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:18px}
+    .pill{font-size:13px;color:#4c1d95;background:var(--accent2);border:1px solid #ddd6fe;border-radius:999px;padding:8px 12px;white-space:normal}
+    .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+    .field{display:flex;flex-direction:column;gap:7px}
+    .field.span2{grid-column:span 2}.field.span3{grid-column:span 3}.field.span4{grid-column:span 4}.field.span6{grid-column:span 6}
+    label{font-size:13px;color:#374151;font-weight:650}
+    input,select,textarea{width:100%;border:1px solid var(--line);background:#fff;border-radius:12px;padding:11px 12px;font-size:14px;outline:none;transition:.15s border,.15s box-shadow}
+    textarea{min-height:44px;resize:vertical}
+    input:focus,select:focus,textarea:focus{border-color:#a78bfa;box-shadow:0 0 0 4px rgba(124,58,237,.12)}
+    .checkbox-row{flex-direction:row;align-items:center;gap:8px;margin-top:4px;color:#374151;font-size:13px}
+    .checkbox-row input{width:auto}
+    .form-hint,.api-hint{font-size:13px;color:var(--muted);line-height:1.45;margin-top:12px}
+    .api-status{margin-top:12px;border-radius:14px;border:1px solid var(--line);background:#f9fafb;padding:12px 14px;font-size:14px;color:#374151;line-height:1.45}
+    .api-status.good{border-color:#bbf7d0;background:#f0fdf4;color:#065f46}
+    .api-status.bad{border-color:#fecaca;background:#fef2f2;color:#991b1b}
+    .api-status.warn{border-color:#fed7aa;background:#fff7ed;color:#9a3412}
+    .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+    button{border:0;border-radius:12px;padding:11px 14px;font-weight:700;cursor:pointer;transition:.15s transform,.15s opacity;white-space:nowrap}
+    button:hover{transform:translateY(-1px)} button:disabled{opacity:.55;cursor:not-allowed;transform:none}
+    .primary{background:var(--accent);color:#fff}.secondary{background:#111827;color:#fff}.ghost{background:#fff;color:#374151;border:1px solid var(--line)}.danger{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}.small{font-size:12px;padding:7px 9px;border-radius:9px}
+    .table-top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}.search{max-width:310px}
+    .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:16px;background:#fff}
+    table{width:100%;border-collapse:collapse;min-width:1260px} th,td{border-bottom:1px solid var(--line);padding:12px 10px;text-align:left;font-size:13px;vertical-align:top} th{background:#f9fafb;color:#374151;position:sticky;top:0;z-index:1} tr:last-child td{border-bottom:0}
+    .name-main{font-weight:800}.name-sub{color:var(--muted);font-size:12px;margin-top:4px;line-height:1.35}.profit-good{color:var(--good);font-weight:800}.profit-bad{color:var(--bad);font-weight:800}.profit-warn{color:var(--warn);font-weight:800}.actions{display:flex;gap:6px;flex-wrap:wrap}.empty{text-align:center;color:var(--muted);padding:28px;display:none}.footer{text-align:center;color:var(--muted);font-size:12px;margin-top:10px;line-height:1.45}.tag{display:inline-flex;align-items:center;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:800;padding:3px 7px;margin-top:5px}.api-mini{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}.api-mini div{border:1px solid var(--line);background:#fff;border-radius:14px;padding:10px}.api-mini span{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}.api-mini strong{font-size:13px}
+    @media (max-width:920px){.hero{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr)}.field.span2,.field.span3,.field.span4,.field.span6{grid-column:span 2}.table-top,.section-title{align-items:flex-start;flex-direction:column}.search{max-width:none}.api-mini{grid-template-columns:repeat(2,1fr)}}
+    @media (max-width:560px){.wrap{padding:18px 10px 32px}.intro{padding:20px}.grid{grid-template-columns:1fr}.field.span2,.field.span3,.field.span4,.field.span6{grid-column:span 1}.api-mini{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <div class="card intro">
+        <h1>Калькулятор чистой прибыли WB</h1>
+        <p class="lead">Вносите товары Wildberries: артикул WB, цену продажи в рублях, курс RUB → KZT, себестоимость, упаковку, склад отправки, комиссию, логистику и налоги. Сайт считает чистую прибыль по каждой позиции в тенге.</p>
+        <div class="note">Цена продажи вводится в рублях, расходы и чистая прибыль — в тенге. Комиссию можно подтянуть через WB API по артикулу WB: карточка даёт subjectID, а тарифы WB дают процент комиссии по выбранной модели продаж.</div>
+      </div>
+      <div class="card totals">
+        <div class="metric" id="totalRevenueBox"><span>Общая выручка, ₸</span><strong id="totalRevenue">0 ₸</strong></div>
+        <div class="metric" id="totalProfitBox"><span>Чистая прибыль</span><strong id="totalProfit">0 ₸</strong></div>
+        <div class="metric"><span>Средняя маржа / ROI</span><strong id="avgStats">0% / 0%</strong></div>
+      </div>
+    </section>
+
+    <section class="card api-card">
+      <div class="section-title">
+        <h2>WB API для комиссии</h2>
+        <span class="pill">Артикул WB → карточка товара → subjectID → комиссия по модели продаж</span>
+      </div>
+      <div class="grid">
+        <div class="field span3"><label for="wbToken">API-ключ WB</label><input id="wbToken" type="password" placeholder="Вставьте токен WB API" autocomplete="off" /></div>
+        <div class="field span2"><label for="proxyUrl">Proxy URL, если браузер блокирует API</label><input id="proxyUrl" placeholder="Например: http://localhost:8787/wb-proxy" /></div>
+        <div class="field"><label for="apiLocale">Язык API</label><select id="apiLocale"><option value="ru">ru</option><option value="en">en</option><option value="zh">zh</option></select></div>
+        <label class="field checkbox-row span2"><input id="saveToken" type="checkbox" /> Сохранять токен в этом браузере</label>
+        <label class="field checkbox-row span2"><input id="autoPrice" type="checkbox" checked /> Подставлять цену продажи из WB</label>
+        <label class="field checkbox-row span2"><input id="useCache" type="checkbox" checked /> Кешировать комиссии на 1 час</label>
+      </div>
+      <div class="api-hint">Для автозагрузки обычно нужен токен с доступом к разделам «Контент», «Цены и скидки» и «Тарифы». В одном HTML-файле токен хранится только у вас в браузере. Для стабильной работы API лучше запускать через proxy, потому что Wildberries может блокировать прямые запросы из браузера через CORS.</div>
+      <div class="api-status" id="apiStatus">Введите API-ключ, артикул WB ниже и нажмите «Подтянуть из WB API».</div>
+    </section>
+
+    <section class="card controls">
+      <div class="section-title">
+        <h2 id="formTitle">Добавить товар</h2>
+        <span class="pill">Формула: цена ₽ × курс − комиссия WB ₸ − себестоимость ₸ − упаковка ₸ − логистика ₸ − налог</span>
+      </div>
+      <form id="productForm">
+        <input type="hidden" id="editId" />
+        <input type="hidden" id="subjectID" />
+        <input type="hidden" id="subjectName" />
+        <input type="hidden" id="apiFetchedAt" />
+        <div class="grid">
+          <div class="field"><label for="nmId">Артикул WB / nmID</label><input id="nmId" inputmode="numeric" placeholder="Напр. 123456789" /></div>
+          <div class="field span2"><label for="name">Товар</label><input id="name" required placeholder="Например: ботинки детские" /></div>
+          <div class="field"><label for="qty">Кол-во</label><input id="qty" type="number" min="1" step="1" value="1" required /></div>
+          <div class="field"><label for="price">Цена продажи, ₽</label><input id="price" type="number" min="0" step="1" value="0" required /></div>
+          <div class="field"><label for="rubRate">Курс ₽ → ₸</label><input id="rubRate" type="number" min="0" step="0.01" value="6" required /></div>
+
+          <div class="field"><label for="cost">Себестоимость, ₸</label><input id="cost" type="number" min="0" step="1" value="0" /></div>
+          <div class="field"><label for="packaging">Упаковка, ₸</label><input id="packaging" type="number" min="0" step="1" value="0" /></div>
+          <div class="field span2"><label for="warehouse">Склад / схема отправки</label><select id="warehouse"></select></div>
+          <div class="field span2"><label for="commissionModel">Модель комиссии WB</label><select id="commissionModel"></select></div>
+
+          <div class="field"><label for="commission">Комиссия WB, %</label><input id="commission" type="number" min="0" step="0.1" value="19" /></div>
+          <div class="field"><label for="acquiring">Эквайринг / оплата, %</label><input id="acquiring" type="number" min="0" step="0.1" value="2" /></div>
+          <div class="field"><label for="tax">Налог от выручки, %</label><input id="tax" type="number" min="0" step="0.1" value="3" /></div>
+          <div class="field"><label for="returns">Резерв возвратов, %</label><input id="returns" type="number" min="0" step="0.1" value="0" /></div>
+
+          <div class="field"><label for="logistics">Логистика WB, ₸</label><input id="logistics" type="number" min="0" step="1" value="0" /></div>
+          <div class="field"><label for="storage">Хранение, ₸</label><input id="storage" type="number" min="0" step="1" value="0" /></div>
+          <div class="field"><label for="acceptance">Приемка / обработка, ₸</label><input id="acceptance" type="number" min="0" step="1" value="0" /></div>
+          <div class="field"><label for="other">Прочие расходы, ₸</label><input id="other" type="number" min="0" step="1" value="0" /></div>
+          <div class="field span2"><label for="comment">Комментарий</label><input id="comment" placeholder="Размер, сезон, категория, заметка" /></div>
+        </div>
+        <div class="api-mini" id="apiMini" style="display:none">
+          <div><span>Предмет WB</span><strong id="miniSubject">—</strong></div>
+          <div><span>Комиссия из API</span><strong id="miniCommission">—</strong></div>
+          <div><span>Цена из API</span><strong id="miniPrice">—</strong></div>
+          <div><span>Источник</span><strong id="miniSource">—</strong></div>
+        </div>
+        <div class="form-hint">Цена продажи указывается в рублях за 1 товар. Себестоимость, упаковка, логистика, хранение, приемка и прочие расходы — в тенге за 1 товар. Количество умножает выручку и все расходы.</div>
+        <div class="btns">
+          <button class="secondary" type="button" id="fetchApiBtn">Подтянуть из WB API</button>
+          <button class="primary" type="submit" id="saveBtn">Добавить товар</button>
+          <button class="secondary" type="button" id="sampleBtn">Заполнить пример</button>
+          <button class="ghost" type="button" id="resetFormBtn">Очистить форму</button>
+          <button class="danger" type="button" id="clearAllBtn">Удалить все товары</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card table-card">
+      <div class="table-top">
+        <h2>Товары и прибыль</h2>
+        <div class="btns" style="margin:0">
+          <input class="search" id="search" placeholder="Поиск по товару, артикулу или комментарию" />
+          <button class="ghost" type="button" id="exportBtn">Экспорт CSV</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Товар / артикул</th>
+              <th>Кол-во</th>
+              <th>Цена, ₽</th>
+              <th>Выручка, ₸</th>
+              <th>Себес.</th>
+              <th>Упак.</th>
+              <th>Комиссия</th>
+              <th>Эквайринг</th>
+              <th>Налог</th>
+              <th>Склад / логистика</th>
+              <th>Все расходы</th>
+              <th>Прибыль / шт</th>
+              <th>Прибыль всего</th>
+              <th>Маржа</th>
+              <th>ROI</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <div class="empty" id="empty">Пока нет товаров. Добавьте первую позицию выше.</div>
+      </div>
+    </section>
+    <div class="footer">Данные сохраняются только в этом браузере через localStorage. Для переноса используйте экспорт CSV.</div>
+  </main>
+
+<script>
+  const warehouses = [
+    { name: 'Ручной ввод', logistics: 0, storage: 0, acceptance: 0, model: 'fbs' },
+    { name: 'FBS — свой склад', logistics: 120, storage: 0, acceptance: 0, model: 'fbs' },
+    { name: 'FBW — склад WB близко', logistics: 180, storage: 10, acceptance: 15, model: 'fbw' },
+    { name: 'FBW — склад WB далеко', logistics: 320, storage: 20, acceptance: 25, model: 'fbw' },
+    { name: 'Маркетплейс/сортировочный центр', logistics: 220, storage: 15, acceptance: 20, model: 'fbs' }
+  ];
+
+  const commissionModels = [
+    { id: 'fbs', label: 'FBS / Маркетплейс', field: 'kgvpMarketplace' },
+    { id: 'fbw', label: 'FBW / Склад WB', field: 'paidStorageKgvp' },
+    { id: 'dbs', label: 'DBS / DBW — Витрина', field: 'kgvpSupplier' },
+    { id: 'edbs', label: 'EDBS — Витрина экспресс', field: 'kgvpSupplierExpress' },
+    { id: 'pickup', label: 'Самовывоз C&C', field: 'kgvpPickup' },
+    { id: 'booking', label: 'Бронирование', field: 'kgvpBooking' }
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const moneyKzt = (n) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Number(n || 0)) + ' ₸';
+  const moneyRub = (n) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Number(n || 0)) + ' ₽';
+  const rateFmt = (n) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(n || 0));
+  const pct = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0).toFixed(1).replace('.0','') + '%';
+  let products = JSON.parse(localStorage.getItem('wbProfitProducts') || '[]');
+
+  function initWarehouses(){
+    $('warehouse').innerHTML = warehouses.map((w,i)=>`<option value="${i}">${w.name}</option>`).join('');
+    $('commissionModel').innerHTML = commissionModels.map(m=>`<option value="${m.id}">${m.label}</option>`).join('');
+    $('warehouse').addEventListener('change', () => {
+      const w = warehouses[+$('warehouse').value];
+      if(w){
+        $('logistics').value = w.logistics;
+        $('storage').value = w.storage;
+        $('acceptance').value = w.acceptance;
+        $('commissionModel').value = w.model;
+      }
+    });
+  }
+
+  function initApiSettings(){
+    $('wbToken').value = localStorage.getItem('wbApiToken') || '';
+    $('proxyUrl').value = localStorage.getItem('wbProxyUrl') || '';
+    $('saveToken').checked = !!localStorage.getItem('wbApiToken');
+    $('apiLocale').value = localStorage.getItem('wbApiLocale') || 'ru';
+    $('useCache').checked = localStorage.getItem('wbUseCache') !== 'false';
+    $('autoPrice').checked = localStorage.getItem('wbAutoPrice') !== 'false';
+    ['wbToken','proxyUrl','apiLocale','saveToken','useCache','autoPrice'].forEach(id => $(id).addEventListener('change', saveApiSettings));
+  }
+
+  function saveApiSettings(){
+    if($('saveToken').checked && $('wbToken').value.trim()) localStorage.setItem('wbApiToken', $('wbToken').value.trim());
+    if(!$('saveToken').checked) localStorage.removeItem('wbApiToken');
+    localStorage.setItem('wbProxyUrl', $('proxyUrl').value.trim());
+    localStorage.setItem('wbApiLocale', $('apiLocale').value || 'ru');
+    localStorage.setItem('wbUseCache', String($('useCache').checked));
+    localStorage.setItem('wbAutoPrice', String($('autoPrice').checked));
+  }
+
+  function readForm(){
+    return {
+      id: $('editId').value || crypto.randomUUID(),
+      nmId: $('nmId').value.trim(),
+      subjectID: $('subjectID').value.trim(),
+      subjectName: $('subjectName').value.trim(),
+      apiFetchedAt: $('apiFetchedAt').value.trim(),
+      name: $('name').value.trim(),
+      qty: +$('qty').value || 1,
+      price: +$('price').value || 0,
+      rubRate: +$('rubRate').value || 0,
+      cost: +$('cost').value || 0,
+      packaging: +$('packaging').value || 0,
+      warehouseName: warehouses[+$('warehouse').value]?.name || 'Ручной ввод',
+      commissionModel: $('commissionModel').value || 'fbs',
+      commission: +$('commission').value || 0,
+      acquiring: +$('acquiring').value || 0,
+      tax: +$('tax').value || 0,
+      returns: +$('returns').value || 0,
+      logistics: +$('logistics').value || 0,
+      storage: +$('storage').value || 0,
+      acceptance: +$('acceptance').value || 0,
+      other: +$('other').value || 0,
+      comment: $('comment').value.trim()
+    };
+  }
+
+  function calc(p){
+    const qty = p.qty || 1;
+    const rubRate = p.rubRate || +(localStorage.getItem('wbRubRate') || 6);
+    const revenueUnit = p.price * rubRate;
+    const commissionUnit = revenueUnit * p.commission / 100;
+    const acquiringUnit = revenueUnit * p.acquiring / 100;
+    const taxUnit = revenueUnit * p.tax / 100;
+    const returnReserveUnit = revenueUnit * p.returns / 100;
+    const wbCostsUnit = commissionUnit + acquiringUnit + taxUnit + p.logistics + p.storage + p.acceptance + returnReserveUnit;
+    const totalCostUnit = p.cost + p.packaging + p.other + wbCostsUnit;
+    const profitUnit = revenueUnit - totalCostUnit;
+    const revenueTotal = revenueUnit * qty;
+    const totalCosts = totalCostUnit * qty;
+    const profitTotal = profitUnit * qty;
+    const margin = revenueUnit ? profitUnit / revenueUnit * 100 : 0;
+    const investmentUnit = p.cost + p.packaging + p.other;
+    const roi = investmentUnit ? profitUnit / investmentUnit * 100 : 0;
+    return { revenueUnit, commissionUnit, acquiringUnit, taxUnit, returnReserveUnit, wbCostsUnit, totalCostUnit, revenueTotal, totalCosts, profitUnit, profitTotal, margin, roi };
+  }
+
+  function save(){ localStorage.setItem('wbProfitProducts', JSON.stringify(products)); }
+  function profitClass(n){ return n < 0 ? 'profit-bad' : n < 300 ? 'profit-warn' : 'profit-good'; }
+  function modelLabel(id){ return commissionModels.find(m=>m.id===id)?.label || 'FBS / Маркетплейс'; }
+  function modelField(id){ return commissionModels.find(m=>m.id===id)?.field || 'kgvpMarketplace'; }
+
+  function render(){
+    const q = $('search').value.trim().toLowerCase();
+    const filtered = products.filter(p => !q || String(p.nmId || '').toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || (p.comment || '').toLowerCase().includes(q) || (p.subjectName || '').toLowerCase().includes(q));
+    $('empty').style.display = filtered.length ? 'none' : 'block';
+    $('tbody').innerHTML = filtered.map(p => {
+      const c = calc(p);
+      const apiTag = p.apiFetchedAt ? '<span class="tag">API</span>' : '';
+      return `<tr>
+        <td><div class="name-main">${escapeHtml(p.name)}</div><div class="name-sub">${p.nmId ? 'nmID: ' + escapeHtml(p.nmId) : 'Без nmID'}${p.subjectName ? ' · ' + escapeHtml(p.subjectName) : ''}</div><div class="name-sub">${escapeHtml(p.comment || 'Без комментария')} ${apiTag}</div></td>
+        <td>${p.qty}</td>
+        <td>${moneyRub(p.price)}<div class="name-sub">курс ${rateFmt(p.rubRate || +(localStorage.getItem('wbRubRate') || 6))} ₸</div></td>
+        <td>${moneyKzt(c.revenueTotal)}</td>
+        <td>${moneyKzt(p.cost * p.qty)}</td>
+        <td>${moneyKzt(p.packaging * p.qty)}</td>
+        <td>${moneyKzt(c.commissionUnit * p.qty)}<div class="name-sub">${pct(p.commission)} · ${escapeHtml(modelLabel(p.commissionModel))}</div></td>
+        <td>${moneyKzt(c.acquiringUnit * p.qty)}<div class="name-sub">${pct(p.acquiring)}</div></td>
+        <td>${moneyKzt(c.taxUnit * p.qty)}<div class="name-sub">${pct(p.tax)}</div></td>
+        <td>${moneyKzt((p.logistics+p.storage+p.acceptance) * p.qty)}<div class="name-sub">${escapeHtml(p.warehouseName)}</div></td>
+        <td>${moneyKzt(c.totalCosts)}</td>
+        <td class="${profitClass(c.profitUnit)}">${moneyKzt(c.profitUnit)}</td>
+        <td class="${profitClass(c.profitTotal)}">${moneyKzt(c.profitTotal)}</td>
+        <td class="${profitClass(c.profitUnit)}">${pct(c.margin)}</td>
+        <td class="${profitClass(c.profitUnit)}">${pct(c.roi)}</td>
+        <td><div class="actions"><button class="ghost small" onclick="editProduct('${p.id}')">Изм.</button><button class="danger small" onclick="deleteProduct('${p.id}')">Удал.</button></div></td>
+      </tr>`;
+    }).join('');
+    renderTotals();
+  }
+
+  function renderTotals(){
+    const totals = products.reduce((acc,p)=>{
+      const c = calc(p);
+      acc.revenue += c.revenueTotal; acc.profit += c.profitTotal; acc.costs += c.totalCosts;
+      return acc;
+    }, { revenue:0, profit:0, costs:0 });
+    $('totalRevenue').textContent = moneyKzt(totals.revenue);
+    $('totalProfit').textContent = moneyKzt(totals.profit);
+    $('totalProfitBox').classList.toggle('bad', totals.profit < 0);
+    $('totalProfitBox').classList.toggle('good', totals.profit >= 0);
+    const margin = totals.revenue ? totals.profit / totals.revenue * 100 : 0;
+    const investment = products.reduce((acc,p)=>acc+(p.cost+p.packaging+p.other)*p.qty,0);
+    const roi = investment ? totals.profit / investment * 100 : 0;
+    $('avgStats').textContent = `${pct(margin)} / ${pct(roi)}`;
+  }
+
+  function resetForm(){
+    $('productForm').reset();
+    $('editId').value = ''; $('nmId').value = ''; $('subjectID').value = ''; $('subjectName').value = ''; $('apiFetchedAt').value = '';
+    $('qty').value = 1; $('price').value = 0; $('rubRate').value = localStorage.getItem('wbRubRate') || 6; $('cost').value = 0; $('packaging').value = 0;
+    $('commission').value = 19; $('acquiring').value = 2; $('tax').value = 3; $('returns').value = 0; $('warehouse').value = 0; $('commissionModel').value = 'fbs'; $('logistics').value = 0; $('storage').value = 0; $('acceptance').value = 0; $('other').value = 0;
+    $('formTitle').textContent = 'Добавить товар'; $('saveBtn').textContent = 'Добавить товар';
+    $('apiMini').style.display = 'none';
+  }
+
+  function editProduct(id){
+    const p = products.find(x=>x.id===id); if(!p) return;
+    $('editId').value = p.id; $('nmId').value = p.nmId || ''; $('subjectID').value = p.subjectID || ''; $('subjectName').value = p.subjectName || ''; $('apiFetchedAt').value = p.apiFetchedAt || '';
+    $('name').value = p.name; $('qty').value = p.qty; $('price').value = p.price; $('rubRate').value = p.rubRate || localStorage.getItem('wbRubRate') || 6; $('cost').value = p.cost; $('packaging').value = p.packaging;
+    const wi = warehouses.findIndex(w=>w.name===p.warehouseName); $('warehouse').value = wi >= 0 ? wi : 0;
+    $('commissionModel').value = p.commissionModel || warehouses[+$('warehouse').value]?.model || 'fbs';
+    $('commission').value = p.commission; $('acquiring').value = p.acquiring; $('tax').value = p.tax; $('returns').value = p.returns;
+    $('logistics').value = p.logistics; $('storage').value = p.storage; $('acceptance').value = p.acceptance; $('other').value = p.other; $('comment').value = p.comment || '';
+    updateApiMini({ subjectName: p.subjectName, commission: p.commission, price: p.price, source: p.apiFetchedAt ? 'сохранено из API' : 'ручной ввод' });
+    $('formTitle').textContent = 'Редактировать товар'; $('saveBtn').textContent = 'Сохранить изменения';
+    scrollTo({top:0, behavior:'smooth'});
+  }
+
+  function deleteProduct(id){ products = products.filter(p=>p.id!==id); save(); render(); }
+
+  function exportCsv(){
+    const rows = [['nmID','Товар','Предмет WB','subjectID','Комментарий','Кол-во','Цена продажи RUB','Курс RUB-KZT','Выручка KZT','Себестоимость KZT','Упаковка KZT','Склад','Логистика KZT','Хранение KZT','Приемка KZT','Модель комиссии','Комиссия %','Комиссия сумма KZT','Эквайринг %','Налог %','Возвраты %','Прочие KZT','Все расходы KZT','Прибыль шт KZT','Прибыль всего KZT','Маржа %','ROI %','Данные из API']];
+    products.forEach(p=>{
+      const c = calc(p);
+      rows.push([p.nmId,p.name,p.subjectName,p.subjectID,p.comment,p.qty,p.price,p.rubRate || +(localStorage.getItem('wbRubRate') || 6),c.revenueTotal,p.cost,p.packaging,p.warehouseName,p.logistics,p.storage,p.acceptance,modelLabel(p.commissionModel),p.commission,c.commissionUnit*p.qty,p.acquiring,p.tax,p.returns,p.other,c.totalCosts,c.profitUnit,c.profitTotal,c.margin,c.roi,p.apiFetchedAt]);
+    });
+    const csv = rows.map(r => r.map(cell => '"' + String(cell ?? '').replaceAll('"','""') + '"').join(';')).join('\n');
+    const blob = new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'wb_profit_calculator.csv'; a.click(); URL.revokeObjectURL(url);
+  }
+
+  async function wbFetch(url, options = {}){
+    const token = $('wbToken').value.trim();
+    if(!token) throw new Error('Вставьте API-ключ WB.');
+    saveApiSettings();
+    const method = options.method || 'GET';
+    const body = options.body || null;
+    const headers = { 'Authorization': token, 'Content-Type': 'application/json' };
+    const proxy = $('proxyUrl').value.trim();
+    const request = proxy
+      ? fetch(proxy, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url, method, headers, body }) })
+      : fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    const response = await request;
+    const text = await response.text();
+    let data;
+    try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+    if(!response.ok){
+      const detail = data.detail || data.errorText || data.message || data.title || data.raw || response.statusText;
+      throw new Error(`WB API ${response.status}: ${detail}`);
+    }
+    return data;
+  }
+
+  async function getCardByArticle(article){
+    const locale = $('apiLocale').value || 'ru';
+    const body = {
+      settings: {
+        sort: { ascending: false },
+        filter: { textSearch: String(article), withPhoto: -1 },
+        cursor: { limit: 100 }
+      }
+    };
+    const data = await wbFetch(`https://content-api.wildberries.ru/content/v2/get/cards/list?locale=${encodeURIComponent(locale)}`, { method:'POST', body });
+    const cards = Array.isArray(data.cards) ? data.cards : (Array.isArray(data.data?.cards) ? data.data.cards : []);
+    const exact = cards.find(c => String(c.nmID) === String(article)) || cards.find(c => String(c.vendorCode || '').toLowerCase() === String(article).toLowerCase()) || cards[0];
+    if(!exact) throw new Error('Карточка не найдена. Проверьте nmID или доступ токена к Контенту.');
+    return exact;
+  }
+
+  async function getPriceByNmId(nmID){
+    const url = `https://discounts-prices-api.wildberries.ru/api/v2/list/goods/filter?limit=10&offset=0&filterNmID=${encodeURIComponent(nmID)}`;
+    const data = await wbFetch(url, { method:'GET' });
+    const goods = data.data?.listGoods || data.listGoods || [];
+    const item = goods.find(g => String(g.nmID) === String(nmID)) || goods[0];
+    if(!item) return null;
+    const firstSize = Array.isArray(item.sizes) ? item.sizes[0] : null;
+    const price = Number(firstSize?.discountedPrice || firstSize?.clubDiscountedPrice || firstSize?.price || item.discountedPrice || item.price || 0);
+    return { price, vendorCode: item.vendorCode, currency: item.currencyIsoCode4217 || 'RUB' };
+  }
+
+  function normalizeCommissionReport(data){
+    if(Array.isArray(data)) return data;
+    if(Array.isArray(data.report)) return data.report;
+    if(Array.isArray(data.data)) return data.data;
+    if(Array.isArray(data.data?.report)) return data.data.report;
+    if(Array.isArray(data.response)) return data.response;
+    return [];
+  }
+
+  async function getCommissionReport(){
+    const locale = $('apiLocale').value || 'ru';
+    const cacheKey = `wbCommissionReport_${locale}`;
+    const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+    if($('useCache').checked && cached && Date.now() - cached.time < 60 * 60 * 1000 && Array.isArray(cached.items)) return cached.items;
+    const data = await wbFetch(`https://common-api.wildberries.ru/api/v1/tariffs/commission?locale=${encodeURIComponent(locale)}`, { method:'GET' });
+    const items = normalizeCommissionReport(data);
+    if(!items.length) throw new Error('API тарифов не вернул список комиссий.');
+    localStorage.setItem(cacheKey, JSON.stringify({ time: Date.now(), items }));
+    return items;
+  }
+
+  async function pullFromApi(){
+    const article = $('nmId').value.trim();
+    if(!article){ setApiStatus('bad','Введите артикул WB / nmID в форме товара.'); return; }
+    const btn = $('fetchApiBtn');
+    btn.disabled = true; btn.textContent = 'Загружаю из API...';
+    setApiStatus('', 'Запрашиваю карточку, цену и комиссию WB...');
+    try{
+      const card = await getCardByArticle(article);
+      const nmID = card.nmID || article;
+      let priceInfo = null;
+      if($('autoPrice').checked){
+        try { priceInfo = await getPriceByNmId(nmID); } catch(err){ console.warn(err); }
+      }
+      const report = await getCommissionReport();
+      const subjectID = card.subjectID || card.objectID || '';
+      const subjectName = card.subjectName || card.object || '';
+      const row = report.find(x => String(x.subjectID) === String(subjectID)) || report.find(x => String(x.subjectName || '').toLowerCase() === String(subjectName).toLowerCase());
+      if(!row) throw new Error(`Не нашёл комиссию для subjectID ${subjectID || '—'} (${subjectName || 'без названия'}).`);
+      const field = modelField($('commissionModel').value);
+      const commission = Number(row[field] ?? row.kgvpMarketplace ?? row.paidStorageKgvp ?? 0);
+      if(!commission) throw new Error(`В тарифах нет процента для модели ${modelLabel($('commissionModel').value)}.`);
+
+      $('nmId').value = nmID;
+      $('subjectID').value = subjectID;
+      $('subjectName').value = subjectName;
+      $('apiFetchedAt').value = new Date().toISOString();
+      $('name').value = card.title || card.vendorCode || $('name').value || `WB ${nmID}`;
+      if(priceInfo && priceInfo.price > 0) $('price').value = priceInfo.price;
+      $('commission').value = commission;
+      const source = `${field}${priceInfo?.price ? ' + цена WB' : ''}`;
+      updateApiMini({ subjectName, commission, price: priceInfo?.price, source });
+      setApiStatus('good', `Готово: ${card.title || card.vendorCode || 'товар'} · subjectID ${subjectID} · ${subjectName || 'предмет не указан'} · комиссия ${pct(commission)}.`);
+    }catch(err){
+      setApiStatus('bad', `Не удалось подтянуть из API: ${err.message}. Можно оставить комиссию вручную или попробовать через proxy URL.`);
+    }finally{
+      btn.disabled = false; btn.textContent = 'Подтянуть из WB API';
+    }
+  }
+
+  function updateApiMini({subjectName, commission, price, source}){
+    $('apiMini').style.display = 'grid';
+    $('miniSubject').textContent = subjectName || '—';
+    $('miniCommission').textContent = commission ? pct(Number(commission)) : '—';
+    $('miniPrice').textContent = price ? moneyRub(Number(price)) : '—';
+    $('miniSource').textContent = source || '—';
+  }
+
+  function setApiStatus(type, text){
+    const el = $('apiStatus');
+    el.className = 'api-status' + (type ? ' ' + type : '');
+    el.textContent = text;
+  }
+
+  function escapeHtml(str){ return String(str).replace(/[&<>'"]/g, t => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[t])); }
+
+  $('productForm').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const p = readForm();
+    if(!p.name){ alert('Введите название товара'); return; }
+    localStorage.setItem('wbRubRate', p.rubRate || 6);
+    const idx = products.findIndex(x=>x.id===p.id);
+    if(idx >= 0) products[idx] = p; else products.unshift(p);
+    save(); resetForm(); render();
+  });
+
+  $('sampleBtn').addEventListener('click', ()=>{
+    $('nmId').value = '123456789'; $('name').value = 'Кроссовки детские WB'; $('qty').value = 10; $('price').value = 1690; $('rubRate').value = localStorage.getItem('wbRubRate') || 6; $('cost').value = 3900; $('packaging').value = 180;
+    $('warehouse').value = 2; $('warehouse').dispatchEvent(new Event('change'));
+    $('commission').value = 19; $('acquiring').value = 2; $('tax').value = 3; $('returns').value = 2; $('other').value = 100; $('comment').value = 'Пример расчета, замените на свои данные';
+  });
+  $('fetchApiBtn').addEventListener('click', pullFromApi);
+  $('resetFormBtn').addEventListener('click', resetForm);
+  $('clearAllBtn').addEventListener('click', ()=>{ if(confirm('Удалить все товары из калькулятора?')){ products=[]; save(); render(); resetForm(); }});
+  $('exportBtn').addEventListener('click', exportCsv);
+  $('search').addEventListener('input', render);
+
+  window.editProduct = editProduct;
+  window.deleteProduct = deleteProduct;
+  $('rubRate').value = localStorage.getItem('wbRubRate') || 6;
+  initWarehouses(); initApiSettings(); render();
+</script>
+</body>
+</html>
